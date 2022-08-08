@@ -12,7 +12,7 @@ import compression from 'compression';
 import cors from 'cors';
 import { UserType, UserResolver } from './service/userService';
 import { AddressType, AddressResolver } from './service/addressService';
-import { ApolloServerPluginDrainHttpServer, ApolloServerPluginLandingPageDisabled, ApolloServerPluginLandingPageGraphQLPlayground, ApolloServerPluginLandingPageLocalDefault } from 'apollo-server-core';
+import { ApolloServerPluginDrainHttpServer, ApolloServerPluginLandingPageLocalDefault } from 'apollo-server-core';
 import { uploadFile } from './helper/upload';
 import fileUpload from 'express-fileupload';
 import { PostResolver, PostType } from './service/postService';
@@ -66,8 +66,6 @@ async function startApolloServer() {
       return model(token?.split(' ')[1], res);
     },
     plugins: [ApolloServerPluginDrainHttpServer({ httpServer }),
-    // ApolloServerPluginLandingPageDisabled(), //disable documentation
-    // ApolloServerPluginLandingPageGraphQLPlayground(), // offline playground
     ApolloServerPluginLandingPageLocalDefault({ embed: true })  // embed true set it on localhost instead of https server
     ],
   });
