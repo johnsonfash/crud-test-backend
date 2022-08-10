@@ -1,11 +1,9 @@
-import { Address, Post, prisma, User } from "@prisma/client";
+import { Address, Post, User } from "@prisma/client";
 import { AuthenticationError, gql } from "apollo-server-express";
 import { Model } from "../context/model";
 import bcrypt from 'bcrypt'
-import { AddUserInput, LoginInput } from "../types/user";
-import jwt from 'jsonwebtoken'
-import fs from 'fs';
-import path from 'path'
+import { AddUserInput, EditUserInput, LoginInput } from "../types/user";
+import { createTokens } from "../helper/utils";
 
 export const UserType = gql`
 type User {
@@ -26,37 +24,39 @@ input LoginInput {
 
 input AddUserInput {
   name: String! @constraint(minLength: 6, uniqueTypeName:"name"),
-  age: Int! @constraint(min: 18, uniqueTypeName:"age"),
   password: String! @constraint(minLength: 6, uniqueTypeName:"password")
   email: String! @constraint(format: "email", uniqueTypeName:"email")
 }
 
+input EditUserInput {
+  name: String @constraint(minLength: 6, uniqueTypeName:"name"),
+  age: Int
+}
+
 extend type Query {
-  me: User
+  me: User,
+  accessToken: Boolean,
   login(input: LoginInput): User
 }
 
 extend type Mutation {
-  addUser(input: AddUserInput): User
+  addUser(input: AddUserInput): User,
+  editUser(input: EditUserInput): User
 }
 `;
 
 export const UserResolver = {
   Query: {
-    login: async (_: unknown, { input }: LoginInput, { open }: Model): Promise<User | null> => {
+    accessToken: async (_: unknown, __: unknown, { auth }: Model): Promise<boolean> => Boolean(auth()),
+    login: async (_: unknown, { input }: LoginInput, { open }: Model): Promise<boolean> => {
       const { prisma, res, hash } = open();
-
-      // const signingOptions = {
-      //   issuer: 'crud-test',
-      //   subject: 'crud-test',
-      //   audience: 'https://crud-test.herokuapp.com',
-      //   expiresIn: "15h",
-      //   algorithm: "RS256"
-      // };
-
       const user = await prisma.user.findUnique({
         where: {
           email: input.email
+        },
+        select: {
+          password: true,
+          id: true
         }
       });
       if (!user) {
@@ -66,17 +66,16 @@ export const UserResolver = {
       }
       const match = await bcrypt.compare(input.password, user.password);
       if (!match) {
-        throw new AuthenticationError('you must be logged in', {
+        throw new AuthenticationError('email or password did not match', {
           "password": "email or password did not match"
         });
       }
-
-      const token = jwt.sign({ id: user.id }, hash, { algorithm: 'RS256', expiresIn: '15h' });
-      res.append('access_token', token);
-      return user;
+      createTokens(res, user.id, hash)
+      return Boolean(user);
     },
     me: async (_: unknown, __: unknown, { auth }: Model): Promise<Partial<User> | null> => {
       const { prisma, id } = auth();
+
       const user: Partial<User | null> = await prisma.user.findUnique({
         where: {
           id
@@ -94,6 +93,19 @@ export const UserResolver = {
       return await prisma.user.create({
         data: { ...input, password }
       })
+    },
+    editUser: async (_: unknown, { input }: EditUserInput, { auth }: Model): Promise<Partial<User> | null> => {
+      const { prisma, id } = auth();
+      const user: Partial<User | null> = await prisma.user.update({
+        where: {
+          id
+        },
+        data: {
+          ...input
+        }
+      });
+      delete user?.password;
+      return user;
     }
   },
 

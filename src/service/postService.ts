@@ -30,7 +30,7 @@ export const PostType = gql`
   }
 
   extend type Mutation {
-  addPost(input: AddPostInput): Boolean,
+  addPost(input: AddPostInput): Post,
   updatePost(input: UpdatePostInput): Boolean,
   deletePost(id: Int!): Boolean
   }
@@ -56,16 +56,18 @@ export const PostResolver = {
       return await prisma.post.findMany({
         where: {
           user_id: id
+        },
+        orderBy: {
+          id: 'desc'
         }
       })
     }
   },
   Mutation: {
-    addPost: async (_: unknown, { input }: AddPostInput, { auth }: Model): Promise<boolean> => {
+    addPost: async (_: unknown, { input }: AddPostInput, { auth }: Model): Promise<Post> => {
       const { prisma, id } = auth();
       input.user_id = id;
-      const newAddress = await prisma.post.create({ data: input });
-      return Boolean(newAddress);
+      return await prisma.post.create({ data: input });
     },
     updatePost: async (_: unknown, { input }: UpdatePostInput, { auth }: Model): Promise<boolean> => {
       const { prisma, id } = auth();
@@ -74,7 +76,14 @@ export const PostResolver = {
     },
     deletePost: async (_: unknown, { id }: { id: number }, { auth }: Model): Promise<boolean> => {
       const { prisma, id: userId } = auth();
-      const deleteAddress = prisma.post.deleteMany({ where: { id, user_id: userId } });
+      const deleteAddress = await prisma.post.deleteMany({
+        where: {
+          AND: [
+            { user_id: userId },
+            { id }
+          ]
+        }
+      });
       return Boolean(deleteAddress);
     },
   },

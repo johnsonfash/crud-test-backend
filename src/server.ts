@@ -12,7 +12,7 @@ import compression from 'compression';
 import cors from 'cors';
 import { UserType, UserResolver } from './service/userService';
 import { AddressType, AddressResolver } from './service/addressService';
-import { ApolloServerPluginDrainHttpServer, ApolloServerPluginLandingPageLocalDefault } from 'apollo-server-core';
+import { ApolloServerPluginDrainHttpServer, ApolloServerPluginLandingPageGraphQLPlayground, ApolloServerPluginLandingPageLocalDefault } from 'apollo-server-core';
 import { uploadFile } from './helper/upload';
 import fileUpload from 'express-fileupload';
 import { PostResolver, PostType } from './service/postService';
@@ -47,6 +47,7 @@ const Query = gql`
 async function startApolloServer() {
   const app = express();
   const httpServer = createServer(app);
+  const PORT = process.env.PORT || 5000;
 
   let schema = makeExecutableSchema({
     typeDefs: [constraintDirectiveTypeDefs, Query, UserType, AddressType, PostType],
@@ -61,30 +62,29 @@ async function startApolloServer() {
     cache: 'bounded',
     validationRules: [depthLimit(5)],
     context: ({ req, res }: { req: Request, res: Response }) => {
-      res.header('Access-Control-Expose-Headers', 'access_token');
-      const token = req.headers.authorization || null;
+      let token = req.headers?.authorization;
       return model(token?.split(' ')[1], res);
     },
     plugins: [ApolloServerPluginDrainHttpServer({ httpServer }),
-    ApolloServerPluginLandingPageLocalDefault({ embed: true })  // embed true set it on localhost instead of https server
+    // ApolloServerPluginLandingPageGraphQLPlayground(), //offline
+    ApolloServerPluginLandingPageLocalDefault({ embed: true })  //embed true
     ],
   });
 
-  app.use(cors());
+  app.use(cors({
+    exposedHeaders: ['access_token', 'refresh_token']
+  }));
   app.use(compression());
   app.use(fileUpload());
-
 
   app.post('/upload', async (req: any, res: any) => {
     uploadFile(req, res);
   });
 
-  app.use('/', express.static(__dirname + '/public'));
-
   await server.start();
 
   server.applyMiddleware({ app, path: '/graphql' });
-  httpServer.listen(3000, (): void => console.log('GraphQL is now running on http://localhost:3000/graphql'));
+  httpServer.listen(PORT, (): void => console.log(`GraphQL is now running on http://localhost:${PORT}/graphql`));
 }
 
 startApolloServer();
