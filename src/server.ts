@@ -59,6 +59,7 @@ async function startApolloServer() {
   const server = new ApolloServer({
     schema,
     csrfPrevention: true,
+    introspection: process.env.NODE_ENV !== 'production',
     cache: 'bounded',
     validationRules: [depthLimit(5)],
     context: ({ req, res }: { req: Request, res: Response }) => {
